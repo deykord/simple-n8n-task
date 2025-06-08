@@ -1,22 +1,45 @@
 [
   {
     "record_id": "POST_010",
-    "title": "Optio Molestias Id Quia Eum",
-    "body": "quo et expedita modi cum officia vel magni\ndoloribus qui repudiandae\nvero nisi sit\nquos veniam quod ...",
-    "word_count": 18,
-    "category": "short",
-    "keywords": "optio, molestias, id",
-    "original_id": 10,
-    "user_id": 1,
-    "processed_date": "2025-06-08",
-    "status": "processed",
-    "tags": "processed, latin",
-    "processing_steps": "title_cleaned, body_truncated, keywords_extracted, category_assigned, defaults_applied",
-    "title_length": 27,
-    "body_length": 103,
-    "has_long_title": false,
-    "common_words": "quo, et, expedita",
-    "has_missing_data": false,
-    "missing_fields": "none"
+    "content": {
+      "title": "Optio Molestias Id Quia Eum",
+      "body": "quo et expedita modi cum officia vel magni\ndoloribus qui repudiandae\nvero nisi sit\nquos veniam quod ...",
+      "word_count": 18,
+      "category": "short",
+      "keywords": [
+        "optio",
+        "molestias",
+        "id"
+      ]
+    },
+    "metadata": {
+      "original_id": 10,
+      "user_id": 1,
+      "processed_date": "2025-06-08",
+      "status": "processed",
+      "tags": [
+        "processed",
+        "latin"
+      ],
+      "processing_steps": [
+        "title_cleaned",
+        "body_truncated",
+        "keywords_extracted",
+        "category_assigned",
+        "defaults_applied"
+      ],
+      "has_missing_data": false,
+      "missing_fields": []
+    },
+    "analytics": {
+      "title_length": 27,
+      "body_length": 103,
+      "has_long_title": false,
+      "common_words": [
+        "quo",
+        "et",
+        "expedita"
+      ]
+    }
   }
 ]
