@@ -1,0 +1,452 @@
+{
+  "name": "Posts Processing",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "17cf695f-9538-4652-9c85-b30f605c595a",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1560,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "5aea8a64-61db-4813-abb5-a01c54b641b9",
+      "name": "Split Posts",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1020,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://jsonplaceholder.typicode.com/posts/{{ $json.post_id }}",
+        "options": {
+          "redirect": {
+            "redirect": {}
+          }
+        }
+      },
+      "id": "c1b0a5b3-3592-4ada-b9e0-0bf004caaef5",
+      "name": "Fetch Post",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -640,
+        140
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Input: API response from JSONPlaceholder\nconst post = $input.first().json;\n\n// Generate unique ID for missing posts using timestamp + random\nfunction generateUniqueDefaultId() {\n  const timestamp = Date.now().toString().slice(-4); // Last 4 digits of timestamp\n  const random = Math.floor(Math.random() * 100).toString().padStart(2, '0'); // Random 2-digit number\n  return `POST_000_${timestamp}${random}`;\n}\n\n// *** DEFAULT VALUES MANAGEMENT ***\n// Handle missing or empty fields with defaults\nconst postId = post.id || 0;\nconst postTitle = post.title || 'Untitled Post';\nconst postBody = post.body || 'No content available';\nconst postUserId = post.userId || 1;\n\n// Helper function to clean title (Title Case)\nfunction toTitleCase(str) {\n  if (!str || typeof str !== 'string') return 'Untitled Post';\n  return str.replace(/\\w\\S*/g, (txt) => \n    txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()\n  ).replace(/\\s+/g, ' ').trim();\n}\n\n// Helper function to extract keywords (first 3 words from title)\nfunction extractKeywords(title) {\n  if (!title || typeof title !== 'string') return ['default', 'post', 'content'];\n  const words = title.toLowerCase().split(' ').slice(0, 3);\n  return words.length > 0 ? words : ['default', 'post', 'content'];\n}\n\n// Helper function to find common words (excluding stop words)\nfunction findCommonWords(text) {\n  if (!text || typeof text !== 'string') return ['content', 'post', 'data'];\n  \n  const stopWords = ['the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'a', 'an', 'is', 'are', 'was', 'were'];\n  const words = text.toLowerCase().match(/\\b\\w+\\b/g) || [];\n  const filtered = words.filter(word => !stopWords.includes(word));\n  \n  if (filtered.length === 0) return ['content', 'post', 'data'];\n  \n  const frequency = {};\n  filtered.forEach(word => frequency[word] = (frequency[word] || 0) + 1);\n  const sortedWords = Object.keys(frequency).sort((a, b) => frequency[b] - frequency[a]).slice(0, 3);\n  \n  return sortedWords.length > 0 ? sortedWords : ['content', 'post', 'data'];\n}\n\n// Check which fields are using defaults\nconst isDefaultTitle = !post.title || post.title.trim() === '';\nconst isDefaultBody = !post.body || post.body.trim() === '';\nconst isDefaultId = !post.id || post.id === 0;\n\n// Process the data with defaults\nconst cleanedTitle = toTitleCase(postTitle);\nconst safeBody = postBody || '';\nconst truncatedBody = safeBody.length > 100 ? safeBody.substring(0, 100) + '...' : safeBody;\nconst wordCount = safeBody.split(' ').filter(word => word.length > 0).length;\n\n// Category assignment with default\nlet category = 'unknown';\nif (isDefaultBody) {\n  category = 'default_content';\n} else if (wordCount === 0) {\n  category = 'empty';\n} else if (wordCount < 20) {\n  category = 'short';\n} else if (wordCount <= 40) {\n  category = 'medium';\n} else {\n  category = 'long';\n}\n\n// Status assignment with validation\nconst status = isDefaultTitle ? 'default_title' : (cleanedTitle.length > 50 ? 'needs_review' : 'processed');\n\n// Tags generation with defaults\nlet tags = ['processed'];\nif (!isDefaultBody && safeBody.includes('et')) tags.push('latin');\nif (!isDefaultTitle && cleanedTitle.length > 30) tags.push('long_title');\nif (wordCount === 0) tags.push('empty_content');\nif (isDefaultTitle) tags.push('default_title');\nif (isDefaultBody) tags.push('default_body');\nif (isDefaultId) tags.push('default_id');\n\n// Processing steps\nconst processingSteps = [\n  'title_cleaned',\n  'body_truncated', \n  'keywords_extracted',\n  'category_assigned',\n  'defaults_applied'\n];\n\n// Build final output with all defaults handled\n// Additional safety defaults for final output fields with unique ID handling\nlet finalRecordId;\nif (postId && postId !== 0) {\n  finalRecordId = `POST_${postId.toString().padStart(3, '0')}`;\n} else {\n  // Generate unique ID for missing posts\n  finalRecordId = generateUniqueDefaultId();\n}\n\nconst finalTitle = cleanedTitle || 'Default Post Title';\nconst finalBody = truncatedBody || 'Default post content - no data available';\n\nconst output = {\n  record_id: finalRecordId,\n  title: finalTitle,\n  body: finalBody,\n  word_count: isDefaultBody ? 'default' : wordCount,\n  category: category,\n  keywords: isDefaultTitle ? 'default, keywords, placeholder' : extractKeywords(cleanedTitle).join(', '),\n  original_id: postId,\n  user_id: postUserId,\n  processed_date: new Date().toISOString().split('T')[0],\n  status: status,\n  tags: tags.join(', '),\n  processing_steps: processingSteps.join(', '),\n  title_length: isDefaultTitle ? 'default' : cleanedTitle.length,\n  body_length: isDefaultBody ? 'default' : truncatedBody.length,\n  has_long_title: isDefaultTitle ? 'default' : (cleanedTitle.length > 30),\n  common_words: isDefaultBody ? 'default, content, placeholder' : findCommonWords(safeBody).join(', '),\n  has_missing_data: (isDefaultTitle || isDefaultBody || isDefaultId),\n  missing_fields: [\n    isDefaultId ? 'id' : null,\n    isDefaultTitle ? 'title' : null,\n    isDefaultBody ? 'body' : null,\n    !post.userId ? 'userId' : null\n  ].filter(field => field !== null).join(', ') || 'none'\n};\n\nreturn [output];"
+      },
+      "id": "b346b03b-c52f-468a-9cab-6acd4f946b58",
+      "name": "Process Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -340,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1Vzdcf9xuhUeA1jYKabWy6vyBHqGwHkr_QcHObT9kM2g",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1Vzdcf9xuhUeA1jYKabWy6vyBHqGwHkr_QcHObT9kM2g/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "record_id": "={{ $json.record_id }}",
+            "title": "={{ $json.title }}",
+            "word_count": "={{ $json.word_count }}",
+            "body": "={{ $json.body }}",
+            "category": "={{ $json.category }}",
+            "keywords": "={{ $json.keywords }}",
+            "original_id": "={{ $json.original_id }}",
+            "processed_date": "={{ $json.processed_date }}",
+            "status": "={{ $json.status }}",
+            "tags": "={{ $json.tags }}",
+            "processing_steps": "={{ $json.processing_steps }}",
+            "title_length": "={{ $json.title_length }}",
+            "common_words": "={{ $json.common_words }}",
+            "has_long_title": "={{ $json.has_long_title }}",
+            "has missing data?": "={{ $json.has_missing_data }}",
+            "missing fields": "={{ $json.missing_fields }}"
+          },
+          "matchingColumns": [
+            "record_id"
+          ],
+          "schema": [
+            {
+              "id": "record_id",
+              "displayName": "record_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "body",
+              "displayName": "body",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "word_count",
+              "displayName": "word_count",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "category",
+              "displayName": "category",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "keywords",
+              "displayName": "keywords",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "original_id",
+              "displayName": "original_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "processed_date",
+              "displayName": "processed_date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tags",
+              "displayName": "tags",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "processing_steps",
+              "displayName": "processing_steps",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "title_length",
+              "displayName": "title_length",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "has_long_title",
+              "displayName": "has_long_title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "common_words",
+              "displayName": "common_words",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "has missing data?",
+              "displayName": "has missing data?",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "missing fields",
+              "displayName": "missing fields",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "127f7c97-70d6-43bb-83fa-213683d67305",
+      "name": "Save to Google Sheets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.4,
+      "position": [
+        -20,
+        140
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "jYipvYHRLogTuEqo",
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "content": "## Start → Initialize counter",
+        "height": 300,
+        "width": 360
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1580,
+        40
+      ],
+      "id": "6cb3fed7-68ac-4589-a1fb-e5b8b0d7ff46",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "jsCode": "const postIds = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];\nreturn postIds.map(id => ({ post_id: id }));"
+      },
+      "id": "39810d2d-58be-47bd-904e-ce245b0abbca",
+      "name": "Initialize Posts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1380,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Loop → \n## For posts 1-10  ",
+        "height": 300
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1080,
+        40
+      ],
+      "id": "1ca499f8-87d4-4387-ad84-44911bddf76b",
+      "name": "Sticky Note1"
+    },
+    {
+      "parameters": {
+        "content": "## HTTP Request → Fetch post data     ",
+        "height": 300
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -700,
+        40
+      ],
+      "id": "c7036c84-93a5-43fa-bced-60a0ba8941d8",
+      "name": "Sticky Note2"
+    },
+    {
+      "parameters": {
+        "content": "## Data Processing → Transform JSON    ",
+        "height": 300
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        40
+      ],
+      "id": "845fba73-3088-4e86-9757-2258de9203a6",
+      "name": "Sticky Note3"
+    },
+    {
+      "parameters": {
+        "content": "## Database Insert → Store record  ",
+        "height": 300
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        40
+      ],
+      "id": "c39d94f8-1b6d-46ee-8ae3-385ea944ad71",
+      "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "content": "## Error Handling → Handle failures  \n## Fetch Post - 2 Max Tries On Fail - Continue On Error\n## Process Data - Set Default Values For Missing Data\n## Database Insert - Continue (Using error output)",
+        "height": 540,
+        "width": 1020,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -740,
+        -160
+      ],
+      "id": "e8a30a9f-ff7d-4912-9a58-834abb0e229d",
+      "name": "Sticky Note5"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Initialize Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Posts": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Fetch Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Post": {
+      "main": [
+        [
+          {
+            "node": "Process Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Data": {
+      "main": [
+        [
+          {
+            "node": "Save to Google Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save to Google Sheets": {
+      "main": [
+        [
+          {
+            "node": "Split Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Initialize Posts": {
+      "main": [
+        [
+          {
+            "node": "Split Posts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "f8c74d5c-4aba-4720-9dbb-4ba3a3215f03",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "75f2ebf910064f07b0b1888d594be54367362e14d178e23509ac651c873121f1"
+  },
+  "id": "s7m100CMnP7Vichf",
+  "tags": []
+}
