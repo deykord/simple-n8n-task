@@ -256,10 +256,6 @@ console.log("Generated output:", output);
 - Document new features
 - Test with various data scenarios
 
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
 ## 🔗 Related Resources
 
 - [n8n Documentation](https://docs.n8n.io/)
