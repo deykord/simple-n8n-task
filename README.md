@@ -18,6 +18,7 @@ This n8n workflow automatically processes blog posts from the JSONPlaceholder AP
 - **Text Processing**: Title case conversion, keyword extraction, content analysis
 - **Batch Processing**: Memory-efficient sequential processing
 - **Audit Trail**: Complete processing history and metadata tracking
+- **Structured Data Output**: Organized content, metadata, and analytics sections
 
 ## 🏗️ Architecture
 
@@ -73,28 +74,52 @@ graph LR
 - **Content Analysis**: Word count, keyword extraction, common words
 - **Categorization**: Content-based classification (short/medium/long)
 - **Metadata Generation**: Processing steps, timestamps, quality flags
+- **Structured Output**: Organized into content, metadata, and analytics sections
 
 #### Output Schema:
 ```javascript
 {
-  record_id: "POST_001",           // Unique identifier
-  title: "Processed Title",        // Cleaned and formatted
-  body: "Truncated content...",    // Limited to 100 chars
-  word_count: 45,                  // Content analysis
-  category: "medium",              // Auto-categorization
-  keywords: "keyword1, keyword2",  // Extracted keywords
-  original_id: 1,                  // Source post ID
-  user_id: 1,                      // Author ID
-  processed_date: "2025-06-08",    // Processing timestamp
-  status: "processed",             // Processing status
-  tags: "processed, latin",        // Auto-generated tags
-  processing_steps: "title_cleaned, body_truncated...",
-  title_length: 25,                // Metadata
-  body_length: 89,                 // Metadata
-  has_long_title: false,           // Quality flag
-  common_words: "word1, word2",    // Frequency analysis
-  has_missing_data: false,         // Quality indicator
-  missing_fields: "none"           // Data quality report
+  "record_id": "POST_010",                    // Unique identifier
+  "content": {
+    "title": "Optio Molestias Id Quia Eum",   // Cleaned and formatted title
+    "body": "quo et expedita modi cum...",    // Truncated content
+    "word_count": 18,                         // Content word count
+    "category": "short",                      // Auto-categorization
+    "keywords": [                             // Extracted keywords array
+      "optio",
+      "molestias", 
+      "id"
+    ]
+  },
+  "metadata": {
+    "original_id": 10,                        // Source post ID
+    "user_id": 1,                            // Author ID
+    "processed_date": "2025-06-08",          // Processing timestamp
+    "status": "processed",                    // Processing status
+    "tags": [                                // Auto-generated tags array
+      "processed",
+      "latin"
+    ],
+    "processing_steps": [                     // Detailed processing history
+      "title_cleaned",
+      "body_truncated",
+      "keywords_extracted",
+      "category_assigned",
+      "defaults_applied"
+    ],
+    "has_missing_data": false,               // Data quality indicator
+    "missing_fields": []                     // List of missing fields
+  },
+  "analytics": {
+    "title_length": 27,                      // Title character count
+    "body_length": 103,                      // Body character count
+    "has_long_title": false,                 // Title length flag
+    "common_words": [                        // Most frequent words
+      "quo",
+      "et",
+      "expedita"
+    ]
+  }
 }
 ```
 
@@ -103,6 +128,7 @@ graph LR
 - **Operation**: `appendOrUpdate`
 - **Matching Column**: `record_id`
 - **Error Strategy**: Continue on failure
+- **Note**: Nested objects are flattened for Google Sheets compatibility
 
 ## ⚙️ Error Handling Strategy
 
@@ -119,10 +145,11 @@ graph LR
 - **Null Safety**: All fields protected with defaults
 - **Type Validation**: String and number type checking
 - **Unique ID Generation**: Timestamp + random for missing IDs
+- **Array Handling**: Safe array operations with fallbacks
 
 ### Database Level
 - **Conflict Resolution**: Update existing records by `record_id`
-- **Schema Flexibility**: Dynamic column mapping
+- **Schema Flexibility**: Dynamic column mapping for nested structures
 - **Transaction Safety**: Individual row processing
 
 ## 🔧 Setup Instructions
@@ -196,12 +223,20 @@ else if (wordCount < 30) category = 'short';
 // ... customize as needed
 ```
 
-### Change Output Format
+### Change Output Structure
 ```javascript
-// Modify the output object structure
+// Modify the structured output sections
 const output = {
-  // Add/remove fields as needed
-  custom_field: "custom_value"
+  record_id: generateId(),
+  content: {
+    // Content-specific fields
+  },
+  metadata: {
+    // Processing and tracking data
+  },
+  analytics: {
+    // Analysis and metrics
+  }
 };
 ```
 
@@ -214,16 +249,18 @@ const output = {
 
 ### Data Quality Checks
 ```sql
--- Example Google Sheets queries
-=COUNTIF(status, "processed")        -- Successful records
-=COUNTIF(has_missing_data, TRUE)     -- Records with missing data
-=AVERAGE(word_count)                 -- Average content length
+-- Example Google Sheets queries (flattened column names)
+=COUNTIF(metadata_status, "processed")           -- Successful records
+=COUNTIF(metadata_has_missing_data, TRUE)        -- Records with missing data
+=AVERAGE(content_word_count)                     -- Average content length
+=COUNTIF(content_category, "short")              -- Short content count
 ```
 
 ### Performance Metrics
 - **Execution Time**: ~2-5 seconds per post
 - **Memory Usage**: Minimal (batch processing)
 - **API Rate Limits**: Respects JSONPlaceholder limits
+- **Data Structure**: Organized for better analysis and reporting
 
 ## 🚨 Troubleshooting
 
@@ -235,12 +272,16 @@ const output = {
 | Google Sheets auth | Expired credentials | Refresh OAuth token |
 | Missing data | API response changes | Review default values |
 | Loop stuck | Split batch error | Check batch configuration |
+| Nested data issues | Google Sheets flattening | Verify column mapping |
 
 ### Debug Mode
 ```javascript
 // Add to Process Data node for debugging
 console.log("Processing post:", post);
-console.log("Generated output:", output);
+console.log("Generated structured output:", output);
+console.log("Content section:", output.content);
+console.log("Metadata section:", output.metadata);
+console.log("Analytics section:", output.analytics);
 ```
 
 ## 🤝 Contributing
@@ -255,6 +296,7 @@ console.log("Generated output:", output);
 - Add comprehensive error handling
 - Document new features
 - Test with various data scenarios
+- Maintain structured output format
 
 ## 🔗 Related Resources
 
